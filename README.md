@@ -1,71 +1,33 @@
-# Caddy FS module for AWS S3
+# Caddy FS module for S3
 
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/sagikazarmark/caddy-fs-s3/ci.yaml?style=flat-square)
-![Caddy Version](https://img.shields.io/badge/caddy%20version-%3E=2.8.x-61CFDD.svg?style=flat-square)
+stolen from [sagikazarmark/caddy-fs-s3](https://github.com/sagikazarmark/caddy-fs-s3)
 
-## Installation
-
-Build Caddy using [xcaddy](https://github.com/caddyserver/xcaddy):
+use dsn to specify the s3 bucket, refer to [s3_dsn](https://github.com/geektheripper/vast-dsn/tree/goshujin-sama/s3_dsn)
 
 ```shell
-xcaddy build --with github.com/sagikazarmark/caddy-fs-s3
+xcaddy build --with github.com/geektheripper/caddy-fs-s3
 ```
 
 ## Usage
 
 ```caddyfile
 {
-	filesystem my-s3-fs s3 {
-		bucket mybucket
-		region us-east-1
-
-		# endpoint <endpoint>
-		# profile <profile>
-		# use_path_style
+	filesystem bucket1 s3 {
+        dsn = "s3://minioadmin:minioadmin@localhost:9000/bucket1?force-path-style=true&protocol=http"
+	}
+	filesystem bucket2 s3 {
+        dsn = "$(S3_BUCKET_DSN)"
 	}
 }
 
 example.com {
     file_server {
-        fs my-s3-fs
+        fs bucket1
+    }
+}
+fxample.com {
+    file_server {
+        fs bucket2
     }
 }
 ```
-
-> [!NOTE]
-> For a full parameter reference, check out the module [documentation page](https://caddyserver.com/docs/modules/caddy.fs.s3).
-
-### Authentication
-
-The module uses the AWS SDK [default credential chain](https://docs.aws.amazon.com/sdkref/latest/guide/standardized-credentials.html) to find valid credentials.
-
-The easiest way to try the module is setting [static credentials](https://docs.aws.amazon.com/sdkref/latest/guide/feature-static-credentials.html) either in your AWS credentials file or as environment variables:
-
-```shell
-export AWS_ACCESS_KEY_ID=...
-export AWS_SECRET_ACCESS_KEY=...
-```
-
-Caddy will pick up the credentials automatically.
-
-## Development
-
-Run Caddy with the following command:
-
-```shell
-task run
-```
-
-When all coding and testing is done, please run the test suite:
-
-```shell
-task check
-```
-
-For the best developer experience, install [Nix](https://builtwithnix.org/) and [direnv](https://direnv.net/).
-
-Alternatively, install Go, xcaddy and the rest of the dependencies manually or using a package manager.
-
-## License
-
-The project is licensed under the [MIT License](LICENSE).

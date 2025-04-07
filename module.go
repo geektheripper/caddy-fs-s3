@@ -3,13 +3,10 @@ package caddyfss3
 import (
 	"errors"
 	"io/fs"
-	"log/slog"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+	"github.com/geektheripper/vast-dsn/s3_dsn"
 	"github.com/jszwec/s3fs/v2"
 )
 
@@ -27,24 +24,8 @@ var (
 type FS struct {
 	fs.StatFS `json:"-"`
 
-	// The name of the S3 bucket.
-	Bucket string `json:"bucket,omitempty"`
-
-	// The AWS region the bucket is hosted in.
-	Region string `json:"region,omitempty"`
-
-	// The AWS profile to use if mulitple profiles are specified.
-	Profile string `json:"profile,omitempty"`
-
-	// Use non-standard endpoint for S3.
-	Endpoint string `json:"endpoint,omitempty"`
-
-	// Set this to `true` to enable the client to use path-style addressing.
-	UsePathStyle bool `json:"use_path_style,omitempty"`
-
-	// DEPRECATED: please use 'use_path_style' instead.
-	// Set this to `true` to force the request to use path-style addressing.
-	S3ForcePathStyle bool `json:"force_path_style,omitempty"`
+	// The dsn of the S3 bucket. if set, the bucket and region will be ignored.
+	DSN string `json:"dsn,omitempty"`
 }
 
 // CaddyModule returns the Caddy module information.
@@ -56,42 +37,12 @@ func (FS) CaddyModule() caddy.ModuleInfo {
 }
 
 func (fs *FS) Provision(ctx caddy.Context) error {
-	if fs.Bucket == "" {
-		return errors.New("bucket must be set")
-	}
-
-	if fs.S3ForcePathStyle {
-		ctx.Logger().Warn("force_path_style is deprecated, please use use_path_style instead")
-	}
-
-	var configOpts []func(*config.LoadOptions) error
-
-	if fs.Region != "" {
-		configOpts = append(configOpts, config.WithRegion(fs.Region))
-	}
-
-	if fs.Profile != "" {
-		configOpts = append(configOpts, config.WithSharedConfigProfile(fs.Profile))
-	}
-
-	cfg, err := config.LoadDefaultConfig(ctx.Context, configOpts...)
+	client, bucket, err := s3_dsn.NewS3Bucket(fs.DSN)
 	if err != nil {
-		ctx.Slogger().Error("could not create AWS config", slog.String("error", err.Error()))
-
 		return err
 	}
 
-	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		if fs.Endpoint != "" {
-			o.BaseEndpoint = aws.String(fs.Endpoint)
-		}
-
-		o.UsePathStyle = fs.UsePathStyle || fs.S3ForcePathStyle
-	})
-
-	// ReadSeeker is required by Caddy
-	fs.StatFS = s3fs.New(client, fs.Bucket, s3fs.WithReadSeeker)
-
+	fs.StatFS = s3fs.New(client, bucket, s3fs.WithReadSeeker)
 	return nil
 }
 
@@ -103,29 +54,22 @@ func (fs *FS) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 
 	for nesting := d.Nesting(); d.NextBlock(nesting); {
 		switch d.Val() {
-		case "bucket":
-			if !d.AllArgs(&fs.Bucket) {
+		case "dsn":
+			if !d.AllArgs(&fs.DSN) {
 				return d.ArgErr()
 			}
-		case "region":
-			if !d.AllArgs(&fs.Region) {
-				return d.ArgErr()
-			}
-		case "profile":
-			if !d.AllArgs(&fs.Profile) {
-				return d.ArgErr()
-			}
-		case "endpoint":
-			if !d.AllArgs(&fs.Endpoint) {
-				return d.ArgErr()
-			}
-		case "use_path_style":
-			fs.UsePathStyle = true
-		case "force_path_style":
-			fs.S3ForcePathStyle = true
 		default:
 			return d.Errf("%s not a valid caddy.fs.s3 option", d.Val())
 		}
+	}
+
+	if fs.DSN == "" {
+		return errors.New("dsn must be set")
+	}
+
+	_, _, err := s3_dsn.NewS3Bucket(fs.DSN)
+	if err != nil {
+		return err
 	}
 
 	return nil
