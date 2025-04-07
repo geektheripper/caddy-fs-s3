@@ -13,10 +13,10 @@ xcaddy build --with github.com/geektheripper/caddy-fs-s3
 ```caddyfile
 {
 	filesystem bucket1 s3 {
-        dsn = "s3://minioadmin:minioadmin@localhost:9000/bucket1?force-path-style=true&protocol=http"
+        dsn "s3://minioadmin:minioadmin@localhost:9000/bucket1?force-path-style=true&protocol=http"
 	}
 	filesystem bucket2 s3 {
-        dsn = "$(S3_BUCKET_DSN)"
+        dsn "$(S3_BUCKET_DSN)"
 	}
 }
 
@@ -25,9 +25,14 @@ example.com {
         fs bucket1
     }
 }
-fxample.com {
-    file_server {
-        fs bucket2
+spa.com {
+    handle_path /api* {}
+    handle {
+      fs bucket2
+      root web
+      encode zstd gzip
+      try_files {path} /index.html
+      file_server
     }
 }
 ```
